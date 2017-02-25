@@ -1,19 +1,16 @@
 package chess;
 
-import chess.pieces.Piece;
-
 import java.io.*;
 
 /**
  * This class provides the basic CLI interface to the Chess game.
  */
 public class CLI {
-    private static final String NEWLINE = System.getProperty("line.separator");
 
     private final BufferedReader inReader;
     private final PrintStream outStream;
 
-    private GameState gameState = null;
+    private Game game = null;
 
     public CLI(InputStream inputStream, PrintStream outStream) {
         this.inReader = new BufferedReader(new InputStreamReader(inputStream));
@@ -48,7 +45,7 @@ public class CLI {
 
         while (true) {
             showBoard();
-            writeOutput(gameState.getCurrentPlayer() + "'s Move");
+            showStatus();
 
             String input = getInput();
             if (input == null) {
@@ -64,9 +61,11 @@ public class CLI {
                 } else if (input.equals("board")) {
                     writeOutput("Current Game:");
                 } else if (input.equals("list")) {
-                    writeOutput("====> List Is Not Implemented (yet) <====");
+                    game.getMoves().forEach(this::writeOutput);
                 } else if (input.startsWith("move")) {
-                    writeOutput("====> Move Is Not Implemented (yet) <====");
+                    if(!game.doMove(input)) {
+                        writeOutput("No move was provided. Type 'list' to show allowed moves.");
+                    }
                 } else {
                     writeOutput("I didn't understand that.  Type 'help' for a list of commands.");
                 }
@@ -74,13 +73,29 @@ public class CLI {
         }
     }
 
+    private void showStatus() {
+        GameState.Status status = game.getStatus();
+        switch (status) {
+            case BLACK_WINNER:
+                writeOutput("The game is over.  Congrats to Black.");
+                break;
+            case WHITE_WINNER:
+                writeOutput("The game is over.  Congrats to White.");
+                break;
+            case DRAW:
+                writeOutput("The game is over.  Draw.");
+                break;
+            default:
+                writeOutput(game.getCurrentPlayer() + "'s Move");
+        }
+    }
+
     private void doNewGame() {
-        gameState = new GameState();
-        gameState.reset();
+        game = new Game();
     }
 
     private void showBoard() {
-        writeOutput(getBoardAsString());
+        writeOutput(game.getBoardAsString());
     }
 
     private void showCommands() {
@@ -91,50 +106,6 @@ public class CLI {
         writeOutput("    'board'                      Show the chess board");
         writeOutput("    'list'                       List all possible moves");
         writeOutput("    'move <colrow> <colrow>'     Make a move");
-    }
-
-    /**
-     * Display the board for the user(s)
-     */
-    String getBoardAsString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append(NEWLINE);
-
-        printColumnLabels(builder);
-        for (int i = Position.MAX_ROW; i >= Position.MIN_ROW; i--) {
-            printSeparator(builder);
-            printSquares(i, builder);
-        }
-
-        printSeparator(builder);
-        printColumnLabels(builder);
-
-        return builder.toString();
-    }
-
-
-    private void printSquares(int rowLabel, StringBuilder builder) {
-        builder.append(rowLabel);
-
-        for (char c = Position.MIN_COLUMN; c <= Position.MAX_COLUMN; c++) {
-            Piece piece = gameState.getPieceAt(String.valueOf(c) + rowLabel);
-            char pieceChar = piece == null ? ' ' : piece.getIdentifier();
-            builder.append(" | ").append(pieceChar);
-        }
-        builder.append(" | ").append(rowLabel).append(NEWLINE);
-    }
-
-    private void printSeparator(StringBuilder builder) {
-        builder.append("  +---+---+---+---+---+---+---+---+").append(NEWLINE);
-    }
-
-    private void printColumnLabels(StringBuilder builder) {
-        builder.append("   ");
-        for (char c = Position.MIN_COLUMN; c <= Position.MAX_COLUMN; c++) {
-            builder.append(" ").append(c).append("  ");
-        }
-
-        builder.append(NEWLINE);
     }
 
     public static void main(String[] args) {
