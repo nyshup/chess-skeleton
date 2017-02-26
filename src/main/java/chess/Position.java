@@ -65,4 +65,15 @@ public class Position {
         return "" + column + row;
     }
 
+    public Position relative(int columnShift, int rowShift) {
+        return new Position((char) (column + columnShift), row + rowShift);
+    }
+
+    public boolean isValid() {
+        if (column < MIN_COLUMN || column > MAX_COLUMN
+                || row < MIN_ROW || row > MAX_ROW) {
+            return false;
+        }
+        return true;
+    }
 }

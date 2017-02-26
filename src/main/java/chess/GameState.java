@@ -5,12 +5,25 @@ import chess.pieces.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import static chess.GameState.Status.*;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Class that represents the current state of the game.  Basically, what pieces are in which positions on the
  * board.
  */
 public class GameState {
+
+    public static enum Status {
+        WHITE_WINNER,
+        BLACK_WINNER,
+        DRAW,
+        IN_PROGRESS
+    }
 
     /**
      * The current player
@@ -21,6 +34,7 @@ public class GameState {
      * A map of board positions to pieces at that position
      */
     private Map<Position, Piece> positionToPieceMap;
+    private boolean status;
 
     /**
      * Create the game state.
@@ -98,7 +112,93 @@ public class GameState {
      * @param piece The piece to place
      * @param position The position
      */
-    private void placePiece(Piece piece, Position position) {
+    void placePiece(Piece piece, Position position) {
         positionToPieceMap.put(position, piece);
+    }
+
+    /**
+     * Get all available moves for current player
+     * @return stream of moves
+     */
+    public Stream<Move> getMoves() {
+        return getAllMovesUnfiltered()
+                .filter(ownerIs(getCurrentPlayer()))
+                .filter(this::checkMoveToEscapeCheckmate);
+    }
+
+    private Predicate<Move> ownerIs(Player player) {
+        return move -> move.getPiece().getOwner() == player;
+    }
+
+    /**
+     * Provide move of piece from one position to other
+     * @param mv
+     */
+    public void move(Move mv) {
+        getMoves().filter(mv::equals).findFirst().ifPresent(this::moveInternal);
+    }
+
+    /**
+     * Calculate current game's status
+     * @return
+     */
+    public Status getStatus() {
+        if (getMoves().collect(toList()).isEmpty()) {
+            if (isKingUnderAttack()) {
+                return getCurrentPlayer() == Player.White? BLACK_WINNER: WHITE_WINNER;
+            } else {
+                return DRAW;
+            }
+        }
+        return IN_PROGRESS;
+    }
+
+    private Stream<Move> getAllMovesUnfiltered() {
+        return positionToPieceMap.entrySet().stream()
+                .flatMap(entry -> entry.getValue().getMoves(entry.getKey(), GameState.this));
+    }
+
+    private boolean checkMoveToEscapeCheckmate(Move move) {
+        GameState cpState = getCopyState();
+        cpState.moveInternal(move);
+        return cpState.getAllMovesUnfiltered()
+                .filter(ownerIs(cpState.getCurrentPlayer()))
+                .allMatch(m -> {
+                    Piece piece = cpState.getPieceAt(m.getTo());
+                    return piece == null || !(piece instanceof King);
+                });
+    }
+
+    private void moveInternal(Move mv) {
+        Piece piece = getPieceAt(mv.getFrom());
+        positionToPieceMap.remove(mv.getFrom());
+        placePiece(piece, mv.getTo());
+        changePlayer();
+    }
+
+    private void changePlayer() {
+        currentPlayer = currentPlayer == Player.Black? Player.White: Player.Black;
+    }
+
+    private GameState getCopyState() {
+        GameState state = new GameState();
+        positionToPieceMap.forEach((k, v) -> state.placePiece(v, k));
+        state.currentPlayer = getCurrentPlayer();
+        return state;
+    }
+
+    private boolean isKingUnderAttack() {
+        Player enemy = currentPlayer == Player.White ? Player.Black : Player.White;
+        Optional<Move> checkmateMove = getAllMovesUnfiltered()
+                .filter(ownerIs(enemy))
+                .filter(m -> {
+                            Piece piece = getPieceAt(m.getTo());
+                            return piece != null && piece instanceof King;
+                        })
+                .findFirst();
+        if (checkmateMove.isPresent()) {
+            return true;
+        }
+        return false;
     }
 }
